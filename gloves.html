@@ -1,0 +1,612 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#070d1a">
+<title>Smart Glove Care</title>
+<style>
+  :root{
+    --bg:#070d1a; --surface:rgba(255,255,255,.045); --surface2:rgba(255,255,255,.08);
+    --line:rgba(255,255,255,.09); --text:#eef3fb; --sub:#8fa0b8; --accent:#38e1c6;
+    --ok:#34d399; --warn:#fbbf24; --bad:#f43f5e; --c:#34d399;
+    --radius:20px;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    font-family:ui-rounded,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;
+    background:var(--bg);color:var(--text);min-height:100vh;
+    padding:max(14px,env(safe-area-inset-top)) 14px max(24px,env(safe-area-inset-bottom));
+    overflow-x:hidden;
+  }
+  .bg{position:fixed;inset:0;z-index:-2;background:
+    radial-gradient(60% 50% at 12% 0%,rgba(56,225,198,.16),transparent 70%),
+    radial-gradient(50% 45% at 100% 20%,rgba(96,165,250,.14),transparent 70%),
+    radial-gradient(60% 50% at 50% 110%,rgba(167,139,250,.12),transparent 70%),var(--bg)}
+  .alarm-overlay{position:fixed;inset:0;z-index:50;pointer-events:none;opacity:0;transition:opacity .3s}
+  body.alarm .alarm-overlay{opacity:1;animation:flash .8s infinite alternate;box-shadow:inset 0 0 0 6px var(--bad),inset 0 0 120px rgba(244,63,94,.55)}
+  @keyframes flash{from{background:rgba(244,63,94,.05)}to{background:rgba(244,63,94,.22)}}
+
+  .app{max-width:1020px;margin:0 auto;display:grid;gap:16px;grid-template-columns:1fr}
+  @media(min-width:880px){
+    .app{grid-template-columns:1.1fr .9fr;align-items:start}
+    header,.sound{grid-column:1/-1}
+    .col{display:grid;gap:16px}
+  }
+  .col{display:grid;gap:16px}
+
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;font-size:1.5rem;
+    background:linear-gradient(135deg,rgba(56,225,198,.3),rgba(96,165,250,.3));border:1px solid var(--line)}
+  .brand h1{font-size:1.2rem;font-weight:800;letter-spacing:-.01em}
+  .brand p{font-size:.78rem;color:var(--sub)}
+  .hdr-r{display:flex;align-items:center;gap:8px}
+  .pill{display:flex;align-items:center;gap:8px;padding:7px 13px;border-radius:99px;font-size:.78rem;font-weight:700;
+    background:rgba(251,191,36,.12);color:var(--warn);border:1px solid rgba(251,191,36,.25)}
+  .pill i{width:8px;height:8px;border-radius:50%;background:currentColor;animation:blink 1.6s infinite}
+  .pill.live{background:rgba(52,211,153,.12);color:var(--ok);border-color:rgba(52,211,153,.3)}
+  .pill.off{background:rgba(244,63,94,.12);color:var(--bad);border-color:rgba(244,63,94,.3)}
+  @keyframes blink{50%{opacity:.25}}
+  .icon-btn{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:var(--surface);color:var(--text);font-size:1.1rem;cursor:pointer}
+  .icon-btn:hover{background:var(--surface2)}
+
+  .sound{width:100%;padding:13px;border-radius:14px;border:1px solid var(--line);font-weight:700;font-size:.92rem;cursor:pointer;color:#fff;
+    background:linear-gradient(90deg,#2563eb,#7c3aed)}
+  .sound.on{background:var(--surface);color:var(--ok);border-color:rgba(52,211,153,.4)}
+
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;backdrop-filter:blur(10px)}
+  .card h2{font-size:.74rem;font-weight:800;text-transform:uppercase;letter-spacing:.09em;color:var(--sub);margin-bottom:14px;
+    display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .row-btns{display:flex;gap:6px;flex-wrap:wrap}
+  .btn{padding:8px 12px;border-radius:10px;border:1px solid var(--line);background:var(--surface);color:var(--text);
+    font-size:.8rem;font-weight:700;cursor:pointer;transition:.15s;text-transform:none;letter-spacing:0}
+  .btn:hover{background:var(--surface2);border-color:rgba(255,255,255,.2)}
+  .btn.danger{color:#fda4af}
+
+  /* status */
+  .status{--c:#34d399;text-align:center;padding:30px 20px 22px;position:relative;overflow:hidden;
+    background:radial-gradient(120% 90% at 50% 0%,color-mix(in srgb,var(--c) 26%,transparent),transparent 72%),var(--surface);
+    border-color:color-mix(in srgb,var(--c) 55%,transparent);transition:border-color .4s,background .4s}
+  .status .ico{width:104px;height:104px;margin:0 auto 14px;border-radius:50%;display:grid;place-items:center;font-size:3.4rem;position:relative;
+    background:color-mix(in srgb,var(--c) 18%,transparent);border:1px solid color-mix(in srgb,var(--c) 50%,transparent)}
+  .status .ico::after{content:"";position:absolute;inset:-10px;border-radius:50%;border:2px solid var(--c);opacity:0;animation:ring 2.2s infinite}
+  body:not(.idle) .status .ico::after{opacity:.5}
+  @keyframes ring{0%{transform:scale(.85);opacity:.6}100%{transform:scale(1.25);opacity:0}}
+  .status h3{font-size:1.65rem;font-weight:800;line-height:1.2;margin-bottom:6px;letter-spacing:-.01em}
+  .status p{font-size:.9rem;color:var(--sub)}
+  .hold{height:5px;border-radius:5px;background:rgba(255,255,255,.07);margin:18px auto 0;max-width:260px;overflow:hidden}
+  .hold div{height:100%;width:0;background:var(--c);transition:width .12s linear}
+  .ack{display:none;margin:16px auto 0;padding:13px 26px;border:none;border-radius:14px;background:#fff;color:#7f1d1d;font-size:1rem;font-weight:800;cursor:pointer}
+  .status.is-emergency{animation:shake 1s infinite}
+  .status.is-emergency .ack{display:inline-block}
+  @keyframes shake{0%,100%{transform:translateX(0)}20%{transform:translateX(-3px)}40%{transform:translateX(3px)}60%{transform:translateX(-2px)}80%{transform:translateX(2px)}}
+
+  /* fingers */
+  .fingers{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .finger{text-align:center;padding:12px 6px;border-radius:16px;background:rgba(0,0,0,.2);border:1px solid var(--line);transition:.2s}
+  .finger.bent{border-color:var(--warn);background:rgba(251,191,36,.08)}
+  .cap{position:relative;width:46px;height:130px;margin:0 auto 10px;border-radius:24px;background:rgba(255,255,255,.06);overflow:hidden;border:1px solid var(--line)}
+  .fill{position:absolute;left:0;right:0;bottom:0;height:0;background:linear-gradient(0deg,#38e1c6,#60a5fa);transition:height .2s,background .2s}
+  .finger.bent .fill{background:linear-gradient(0deg,#fbbf24,#fb923c)}
+  .tick{position:absolute;left:0;right:0;height:2px;background:#fff;opacity:.75}
+  .fname{font-weight:800;font-size:.86rem}
+  .fpin{font-size:.7rem;color:var(--sub)}
+  .fval{margin-top:4px;font-size:.9rem;font-weight:700;font-variant-numeric:tabular-nums;color:var(--accent)}
+  .finger.bent .fval{color:var(--warn)}
+  .hint{font-size:.74rem;color:var(--sub);margin-top:12px;line-height:1.5}
+
+  /* connection */
+  .seg{display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:4px;border-radius:12px;background:rgba(0,0,0,.25);border:1px solid var(--line);margin-bottom:12px}
+  .seg button{padding:9px;border:none;border-radius:9px;background:transparent;color:var(--sub);font-weight:700;font-size:.85rem;cursor:pointer}
+  .seg button.on{background:var(--surface2);color:var(--text)}
+  .field{display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+  .field label{font-size:.78rem;color:var(--sub);font-weight:600}
+  input[type=text],select{width:100%;padding:11px 12px;border-radius:11px;border:1px solid var(--line);background:rgba(0,0,0,.3);color:var(--text);font-size:.92rem}
+  input[type=range]{width:100%;accent-color:var(--accent)}
+  .live-only{display:none}
+  body.live .live-only{display:block}
+  body.live .demo-only{display:none}
+
+  /* simulator */
+  .sim-f{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+  .sim-f button{padding:14px 6px;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.25);color:var(--text);font-weight:800;font-size:.9rem;cursor:pointer;transition:.15s}
+  .sim-f button.on{background:rgba(251,191,36,.15);border-color:var(--warn);color:var(--warn)}
+  .presets{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+  .presets button{padding:10px;border-radius:12px;border:1px solid var(--line);background:rgba(0,0,0,.2);color:var(--text);font-weight:700;font-size:.82rem;cursor:pointer;text-align:left}
+  .presets button:hover{border-color:var(--accent)}
+
+  /* legend */
+  .legend{display:grid;gap:8px}
+  .lg{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:13px;background:rgba(0,0,0,.2);border-left:4px solid var(--c)}
+  .lg .e{font-size:1.3rem}
+  .lg .t{flex:1;font-weight:700;font-size:.9rem}
+  .dots{display:flex;gap:5px}
+  .dots i{width:11px;height:11px;border-radius:50%;border:2px solid var(--sub)}
+  .dots i.f{background:var(--c);border-color:var(--c)}
+
+  /* history */
+  .chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+  .chip{padding:5px 10px;border-radius:99px;font-size:.78rem;font-weight:700;background:rgba(0,0,0,.25);border:1px solid var(--line)}
+  .hist{list-style:none;max-height:300px;overflow-y:auto;display:grid;gap:8px;padding-right:2px}
+  .hi{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:12px;background:rgba(0,0,0,.22);border-left:4px solid var(--c);font-size:.88rem}
+  .hi .m{flex:1;font-weight:700}
+  .hi small{display:block;color:var(--sub);font-weight:500;font-size:.72rem;margin-top:2px}
+  .hi time{font-size:.74rem;color:var(--sub);white-space:nowrap}
+  .empty{text-align:center;color:var(--sub);font-size:.85rem;padding:18px}
+
+  dialog{margin:auto;border:1px solid var(--line);border-radius:20px;background:#0e1626;color:var(--text);padding:22px;width:min(420px,92vw)}
+  dialog::backdrop{background:rgba(0,0,0,.6);backdrop-filter:blur(3px)}
+  dialog h2{font-size:1.1rem;margin-bottom:16px}
+  .sw{display:flex;align-items:center;justify-content:space-between;padding:9px 0;font-size:.9rem;font-weight:600}
+  .sw input{width:20px;height:20px;accent-color:var(--accent)}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,30px);opacity:0;background:#fff;color:#0b1220;padding:11px 18px;border-radius:12px;font-weight:700;font-size:.86rem;z-index:99;transition:.3s;pointer-events:none;max-width:90vw;text-align:center}
+  .toast.show{opacity:1;transform:translate(-50%,0)}
+</style>
+</head>
+<body class="idle">
+<div class="bg"></div>
+<div class="alarm-overlay"></div>
+
+<main class="app">
+  <header>
+    <div class="brand">
+      <div class="logo">🧤</div>
+      <div><h1>Smart Glove Care</h1><p>Patient assistive alert system</p></div>
+    </div>
+    <div class="hdr-r">
+      <div class="pill" id="pill"><i></i><span id="pillTxt">Demo mode</span></div>
+      <button class="icon-btn" id="openSettings" title="Settings">⚙️</button>
+    </div>
+  </header>
+
+  <button class="sound" id="soundBtn">🔇 Tap to enable voice &amp; siren</button>
+
+  <div class="col">
+    <section class="card status" id="status">
+      <div class="ico" id="stIcon">😊</div>
+      <h3 id="stTitle">Patient is comfortable.</h3>
+      <p id="stSub">All fingers straight. Monitoring…</p>
+      <div class="hold"><div id="holdBar"></div></div>
+      <button class="ack" id="ackBtn">✅ I'm coming — Acknowledge</button>
+    </section>
+
+    <section class="card">
+      <h2>
+        <span>Live flex sensors</span>
+        <span class="row-btns live-only">
+          <button class="btn" id="calS">Calibrate straight</button>
+          <button class="btn" id="calB">Calibrate bent</button>
+        </span>
+      </h2>
+      <div class="fingers" id="fingers"></div>
+      <p class="hint">White line = trigger point. A gesture fires only after it is held steady, so accidental twitches are ignored.</p>
+    </section>
+
+    <section class="card">
+      <h2>Connection</h2>
+      <div class="seg" id="modeSeg">
+        <button data-mode="demo">🎮 Demo</button>
+        <button data-mode="live">📡 Live ESP32</button>
+      </div>
+      <div class="live-only">
+        <div class="field">
+          <label for="ip">ESP32 IP address (shown in Serial Monitor)</label>
+          <input type="text" id="ip" placeholder="192.168.1.50" inputmode="decimal">
+        </div>
+        <p class="hint">Phone/PC and ESP32 must be on the same WiFi. Open this file directly from your device (not from an https website).</p>
+      </div>
+      <div class="demo-only">
+        <h2 style="margin-top:4px">Simulate fingers</h2>
+        <div class="sim-f" id="simF"></div>
+        <div class="presets" id="presets"></div>
+        <p class="hint">Keyboard: press <b>1</b> <b>2</b> <b>3</b> to bend fingers, <b>0</b> to straighten all.</p>
+      </div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="card">
+      <h2>Gesture guide</h2>
+      <div class="legend" id="legend"></div>
+    </section>
+
+    <section class="card">
+      <h2>
+        <span>Alert history</span>
+        <span class="row-btns">
+          <button class="btn" id="exportBtn">Export CSV</button>
+          <button class="btn danger" id="clearBtn">Clear</button>
+        </span>
+      </h2>
+      <div class="chips" id="stats"></div>
+      <ul class="hist" id="hist"></ul>
+    </section>
+  </div>
+</main>
+
+<dialog id="settings">
+  <h2>⚙️ Settings</h2>
+  <div class="field">
+    <label for="lang">Alert language (text + voice)</label>
+    <select id="lang">
+      <option value="en">English</option>
+      <option value="mr">मराठी</option>
+      <option value="hi">हिन्दी</option>
+    </select>
+  </div>
+  <div class="field">
+    <label for="thr">Bend sensitivity: <b id="thrV"></b>% (lower = bends easier)</label>
+    <input type="range" id="thr" min="20" max="80" step="5">
+  </div>
+  <div class="field">
+    <label for="hold">Hold time before alert: <b id="holdV"></b> ms</label>
+    <input type="range" id="hold" min="300" max="1500" step="100">
+  </div>
+  <label class="sw">Voice announcements <input type="checkbox" id="voice"></label>
+  <label class="sw">Emergency siren <input type="checkbox" id="siren"></label>
+  <label class="sw">Vibration (mobile) <input type="checkbox" id="vibrate"></label>
+  <div class="row-btns" style="margin-top:16px;justify-content:flex-end">
+    <button class="btn" id="resetCal">Reset calibration</button>
+    <button class="btn" id="closeSettings">Done</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(() => {
+'use strict';
+const $ = s => document.querySelector(s);
+
+/* ---------- storage ---------- */
+const store = {
+  get(k, d){ try { const v = localStorage.getItem('sg_' + k); return v ? JSON.parse(v) : d; } catch(e){ return d; } },
+  set(k, v){ try { localStorage.setItem('sg_' + k, JSON.stringify(v)); } catch(e){} }
+};
+
+/* ---------- config ---------- */
+const F = [
+  { n:'Finger 1', pin:'GPIO 34' },
+  { n:'Finger 2', pin:'GPIO 35' },
+  { n:'Finger 3', pin:'GPIO 32' }
+];
+
+// pattern bit: finger1=1, finger2=2, finger3=4
+const CATS = {
+  normal:   { icon:'😊', color:'#34d399', name:'All good', pattern:0,
+              msg:{ en:'Patient is comfortable.', mr:'रुग्ण आरामात आहे.', hi:'मरीज़ आराम से है।' } },
+  water:    { icon:'💧', color:'#38bdf8', name:'Water', pattern:1,
+              msg:{ en:'I need water.', mr:'मला पाणी पाहिजे.', hi:'मुझे पानी चाहिए।' } },
+  medicine: { icon:'💊', color:'#a78bfa', name:'Medicine', pattern:2,
+              msg:{ en:'I need my medicine.', mr:'मला औषध पाहिजे.', hi:'मुझे दवा चाहिए।' } },
+  food:     { icon:'🍲', color:'#4ade80', name:'Food', pattern:4,
+              msg:{ en:'I am hungry.', mr:'मला भूक लागली आहे.', hi:'मुझे भूख लगी है।' } },
+  help:     { icon:'🤝', color:'#fbbf24', name:'Help', pattern:3,
+              msg:{ en:'I need help.', mr:'मला मदत पाहिजे.', hi:'मुझे मदद चाहिए।' } },
+  washroom: { icon:'🚻', color:'#2dd4bf', name:'Washroom', pattern:5,
+              msg:{ en:'I need the washroom.', mr:'मला स्वच्छतागृहात जायचे आहे.', hi:'मुझे शौचालय जाना है।' } },
+  pain:     { icon:'🩹', color:'#fb923c', name:'Pain', pattern:6,
+              msg:{ en:'I am in pain.', mr:'मला वेदना होत आहेत.', hi:'मुझे दर्द हो रहा है।' } },
+  emergency:{ icon:'🚨', color:'#f43f5e', name:'Emergency', pattern:7,
+              msg:{ en:'Emergency! Come immediately!', mr:'आणीबाणी! लगेच या!', hi:'आपातकाल! तुरंत आइए!' } }
+};
+const BY_MASK = {};
+Object.entries(CATS).forEach(([k, c]) => { if (c.pattern) BY_MASK[c.pattern] = k; });
+const VOICE_LANG = { en:'en-IN', mr:'mr-IN', hi:'hi-IN' };
+
+const S = Object.assign({ mode:'demo', ip:'192.168.1.50', lang:'en', hold:700, thr:50, voice:true, siren:true, vibrate:true }, store.get('settings', {}));
+let cal = store.get('cal', null);
+if (!Array.isArray(cal) || cal.length !== 3) cal = F.map(() => ({ s:800, b:2600 }));
+let history = store.get('history', []);
+
+/* ---------- helpers ---------- */
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const saveS = () => store.set('settings', S);
+let toastT;
+function toast(msg){
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(() => t.classList.remove('show'), 2600);
+}
+function patternText(mask){
+  return F.map((f, i) => (mask & (1 << i)) ? f.n : null).filter(Boolean).join(' + ');
+}
+
+/* ---------- build static UI ---------- */
+const fingersEl = $('#fingers');
+F.forEach((f, i) => {
+  fingersEl.insertAdjacentHTML('beforeend',
+    `<div class="finger" id="fg${i}"><div class="cap"><div class="fill"></div><div class="tick"></div></div>
+     <div class="fname">${f.n}</div><div class="fpin">${f.pin}</div><div class="fval">–</div></div>`);
+});
+function placeTicks(){ document.querySelectorAll('.tick').forEach(t => t.style.bottom = S.thr + '%'); }
+
+const simF = $('#simF');
+F.forEach((f, i) => simF.insertAdjacentHTML('beforeend', `<button data-i="${i}">☝️ ${i + 1}</button>`));
+const presetsEl = $('#presets');
+Object.entries(CATS).forEach(([k, c]) => {
+  if (k === 'normal') return;
+  presetsEl.insertAdjacentHTML('beforeend', `<button data-p="${c.pattern}">${c.icon} ${c.name}</button>`);
+});
+presetsEl.insertAdjacentHTML('beforeend', `<button data-p="0" style="grid-column:span 2;text-align:center">✋ Straighten all (reset)</button>`);
+
+function renderLegend(){
+  $('#legend').innerHTML = Object.entries(CATS).filter(([k]) => k !== 'normal').map(([k, c]) => `
+    <div class="lg" style="--c:${c.color}"><span class="e">${c.icon}</span>
+      <span class="t">${c.name}</span>
+      <span class="dots">${F.map((_, i) => `<i class="${c.pattern & (1 << i) ? 'f' : ''}"></i>`).join('')}</span></div>`).join('');
+}
+
+/* ---------- audio ---------- */
+let ctx = null, soundOn = false, soundTouched = false;
+function ensureCtx(){
+  const A = window.AudioContext || window.webkitAudioContext;
+  if (!ctx && A) ctx = new A();
+  if (ctx && ctx.state === 'suspended') ctx.resume();
+}
+function tone(freq, t0, dur, type = 'sine', vol = .2){
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = type; o.frequency.value = freq;
+  g.gain.setValueAtTime(0, t0); g.gain.linearRampToValueAtTime(vol, t0 + .02);
+  g.gain.exponentialRampToValueAtTime(.0001, t0 + dur);
+  o.connect(g); g.connect(ctx.destination); o.start(t0); o.stop(t0 + dur + .05);
+}
+function chime(){ if (!soundOn || !ctx) return; const t = ctx.currentTime; tone(784, t, .25); tone(1047, t + .18, .4); }
+function siren(){
+  if (!soundOn || !ctx || !S.siren) return;
+  const t = ctx.currentTime, o = ctx.createOscillator(), g = ctx.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(600, t);
+  o.frequency.linearRampToValueAtTime(1200, t + .4);
+  o.frequency.linearRampToValueAtTime(600, t + .85);
+  g.gain.value = .2; o.connect(g); g.connect(ctx.destination); o.start(t); o.stop(t + .9);
+}
+function pickLang(l){
+  const voices = window.speechSynthesis ? speechSynthesis.getVoices() : [];
+  if (l === 'mr' && !voices.some(v => v.lang.toLowerCase().startsWith('mr'))) return 'hi-IN';
+  return VOICE_LANG[l];
+}
+function speak(text){
+  if (!soundOn || !S.voice || !('speechSynthesis' in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = pickLang(S.lang); u.rate = .95;
+  speechSynthesis.speak(u);
+}
+function buzz(p){ if (S.vibrate && navigator.vibrate) navigator.vibrate(p); }
+async function enableSound(){
+  soundOn = true; soundTouched = true; ensureCtx();
+  try { if (navigator.wakeLock) await navigator.wakeLock.request('screen'); } catch(e){}
+  try { if ('Notification' in window && Notification.permission === 'default') Notification.requestPermission(); } catch(e){}
+  paintSound(); chime();
+}
+function paintSound(){
+  const b = $('#soundBtn');
+  b.classList.toggle('on', soundOn);
+  b.textContent = soundOn ? '🔊 Voice & siren ON — tap to mute' : '🔇 Tap to enable voice & siren';
+}
+$('#soundBtn').onclick = () => { if (soundOn) { soundOn = false; soundTouched = true; speechSynthesis && speechSynthesis.cancel(); paintSound(); } else enableSound(); };
+function autoSound(){ if (!soundTouched) enableSound(); }
+
+/* ---------- status display ---------- */
+let shown = 'normal', emergency = null, sirenT = null, speakT = null;
+function showCat(cat){
+  if (emergency && cat !== 'emergency') return;
+  shown = cat;
+  const c = CATS[cat], el = $('#status');
+  el.style.setProperty('--c', c.color);
+  el.classList.toggle('is-emergency', cat === 'emergency');
+  document.body.classList.toggle('idle', cat === 'normal');
+  $('#stIcon').textContent = c.icon;
+  $('#stTitle').textContent = c.msg[S.lang];
+  $('#stSub').textContent = cat === 'normal' ? 'All fingers straight. Monitoring…' : `${c.name} request · ${patternText(c.pattern)} bent`;
+}
+function tickEmergency(){
+  if (!emergency) return;
+  const s = Math.floor((Date.now() - emergency.since) / 1000);
+  $('#stSub').textContent = `ACTIVE for ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')} — waiting for caretaker`;
+}
+
+/* ---------- history ---------- */
+const fmtTime = ts => {
+  const d = new Date(ts), t = d.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit', second:'2-digit' });
+  return d.toDateString() === new Date().toDateString() ? t : d.toLocaleDateString([], { day:'2-digit', month:'short' }) + ' ' + t;
+};
+function renderHistory(){
+  const list = $('#hist');
+  if (!history.length) list.innerHTML = '<li class="empty">No alerts yet. All quiet 🌿</li>';
+  else list.innerHTML = history.slice(0, 60).map(h => {
+    const c = CATS[h.cat] || CATS.help;
+    const ack = h.ackAt ? `<small>✅ Acknowledged after ${Math.max(1, Math.round((h.ackAt - h.ts) / 1000))}s</small>` : (h.cat === 'emergency' ? '<small>⚠️ Not acknowledged</small>' : '');
+    return `<li class="hi" style="--c:${c.color}"><span>${c.icon}</span><span class="m">${c.msg[S.lang]}${ack}</span><time>${fmtTime(h.ts)}</time></li>`;
+  }).join('');
+  const today = new Date().toDateString();
+  const counts = {};
+  history.filter(h => new Date(h.ts).toDateString() === today).forEach(h => counts[h.cat] = (counts[h.cat] || 0) + 1);
+  const chips = Object.entries(counts).map(([k, n]) => `<span class="chip" style="color:${CATS[k].color}">${CATS[k].icon} ${n}</span>`).join('');
+  $('#stats').innerHTML = chips ? chips + '<span class="chip">today</span>' : '<span class="chip">No alerts today</span>';
+}
+function addHistory(cat){
+  const e = { id: Date.now(), ts: Date.now(), cat };
+  history.unshift(e); history = history.slice(0, 200);
+  store.set('history', history); renderHistory();
+  return e;
+}
+$('#clearBtn').onclick = () => { if (history.length && confirm('Clear all alert history?')) { history = []; store.set('history', history); renderHistory(); } };
+$('#exportBtn').onclick = () => {
+  if (!history.length) { toast('Nothing to export yet'); return; }
+  const rows = ['time,type,message,acknowledged_after_sec'].concat(history.map(h =>
+    [new Date(h.ts).toISOString(), CATS[h.cat].name, '"' + CATS[h.cat].msg.en + '"', h.ackAt ? Math.round((h.ackAt - h.ts) / 1000) : ''].join(',')));
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([rows.join('\n')], { type:'text/csv' }));
+  a.download = 'glove-alerts.csv'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+};
+
+/* ---------- alerts ---------- */
+function fire(cat){
+  const c = CATS[cat], entry = addHistory(cat);
+  showCat(cat);
+  if (cat === 'emergency'){
+    if (emergency) return;
+    emergency = { since: Date.now(), entry };
+    document.body.classList.add('alarm');
+    siren(); sirenT = setInterval(siren, 1000);
+    speak(c.msg[S.lang]); speakT = setInterval(() => speak(c.msg[S.lang]), 9000);
+    buzz([400, 150, 400, 150, 400]);
+    tickEmergency();
+  } else {
+    chime(); setTimeout(() => speak(c.msg[S.lang]), 450); buzz([200, 100, 200]);
+  }
+  try {
+    if (document.hidden && 'Notification' in window && Notification.permission === 'granted')
+      new Notification('🧤 ' + c.name, { body: c.msg[S.lang] });
+  } catch(e){}
+}
+$('#ackBtn').onclick = () => {
+  if (!emergency) return;
+  emergency.entry.ackAt = Date.now(); store.set('history', history);
+  clearInterval(sirenT); clearInterval(speakT);
+  if ('speechSynthesis' in window) speechSynthesis.cancel();
+  emergency = null; document.body.classList.remove('alarm');
+  buzz(0); showCat('normal'); renderHistory(); toast('Emergency acknowledged ✅');
+};
+
+/* ---------- data sources ---------- */
+const simBent = [false, false, false];
+const simCur = [cal[0].s, cal[1].s, cal[2].s];
+function simValues(){
+  return simCur.map((v, i) => {
+    const target = simBent[i] ? cal[i].b : cal[i].s;
+    simCur[i] = v + (target - v) * .35;
+    return simCur[i] + (Math.random() - .5) * 40;
+  });
+}
+async function fetchLive(){
+  const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), 1000);
+  try {
+    const r = await fetch(`http://${S.ip}/status`, { signal: ctrl.signal, cache: 'no-store' });
+    const j = await r.json();
+    const v = [j.f1, j.f2, j.f3].map(Number);
+    return v.some(isNaN) ? null : v;
+  } catch(e){ return null; } finally { clearTimeout(t); }
+}
+let connState = '';
+function setConn(st){
+  if (st === connState) return; connState = st;
+  const p = $('#pill');
+  p.className = 'pill' + (st === 'live' ? ' live' : st === 'off' ? ' off' : '');
+  $('#pillTxt').textContent = st === 'live' ? 'ESP32 connected' : st === 'off' ? 'ESP32 not reachable' : 'Demo mode';
+}
+
+/* ---------- calibration ---------- */
+let calib = null;
+function calibrate(kind){
+  if (S.mode !== 'live') { toast('Switch to Live ESP32 mode first'); return; }
+  toast(kind === 's' ? 'Keep all fingers STRAIGHT… starting in 3s' : 'BEND all fingers fully… starting in 3s');
+  setTimeout(() => {
+    calib = { samples: [] };
+    setTimeout(() => {
+      const sm = calib.samples; calib = null;
+      if (!sm.length) { toast('No data received. Check connection.'); return; }
+      F.forEach((_, i) => { cal[i][kind] = Math.round(sm.reduce((a, r) => a + r[i], 0) / sm.length); });
+      store.set('cal', cal);
+      const weak = cal.some(c => Math.abs(c.b - c.s) < 300);
+      toast(weak ? 'Saved, but straight & bent values are too close. Calibrate both again.' : (kind === 's' ? 'Straight position saved ✔' : 'Bent position saved ✔'));
+    }, 1200);
+  }, 3000);
+}
+$('#calS').onclick = () => calibrate('s');
+$('#calB').onclick = () => calibrate('b');
+
+/* ---------- main loop ---------- */
+const pctOf = (v, i) => { const { s, b } = cal[i]; return b === s ? 0 : (v - s) / (b - s); };
+let cand = 0, candSince = 0, lastFired = 0, busy = false;
+
+function handle(vals, now){
+  if (calib) calib.samples.push(vals.slice());
+  const flags = vals.map((v, i) => pctOf(v, i) > S.thr / 100);
+  vals.forEach((v, i) => {
+    const el = $('#fg' + i);
+    el.querySelector('.fill').style.height = clamp(pctOf(v, i), 0, 1) * 100 + '%';
+    el.querySelector('.fval').textContent = Math.round(v);
+    el.classList.toggle('bent', flags[i]);
+  });
+  const mask = flags.reduce((m, f, i) => m | (f ? 1 << i : 0), 0);
+  if (mask !== cand) { cand = mask; candSince = now; }
+  const held = now - candSince;
+
+  if (mask === 0){
+    if (held > 500) lastFired = 0;
+    if (held > 3500 && shown !== 'normal' && !emergency) showCat('normal');
+    $('#holdBar').style.width = '0';
+    return;
+  }
+  const c = CATS[BY_MASK[mask]];
+  if (mask !== lastFired){
+    $('#holdBar').style.width = clamp(held / S.hold, 0, 1) * 100 + '%';
+    $('#status').style.setProperty('--c', emergency ? CATS.emergency.color : c.color);
+    if (held >= S.hold){ lastFired = mask; $('#holdBar').style.width = '0'; fire(BY_MASK[mask]); }
+  } else $('#holdBar').style.width = '0';
+}
+
+async function tick(){
+  if (busy) return; busy = true;
+  try {
+    let vals;
+    if (S.mode === 'demo'){ vals = simValues(); setConn('demo'); }
+    else { vals = await fetchLive(); if (!vals){ setConn('off'); return; } setConn('live'); }
+    handle(vals, Date.now());
+  } finally { busy = false; }
+}
+
+/* ---------- controls ---------- */
+function paintSim(){ simF.querySelectorAll('button').forEach((b, i) => b.classList.toggle('on', simBent[i])); }
+simF.onclick = e => { const b = e.target.closest('button'); if (!b) return; autoSound(); simBent[+b.dataset.i] = !simBent[+b.dataset.i]; paintSim(); };
+presetsEl.onclick = e => {
+  const b = e.target.closest('button'); if (!b) return; autoSound();
+  const m = +b.dataset.p; F.forEach((_, i) => simBent[i] = !!(m & (1 << i))); paintSim();
+};
+document.addEventListener('keydown', e => {
+  if (/INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName) || S.mode !== 'demo') return;
+  if (e.key >= '1' && e.key <= '3'){ autoSound(); simBent[+e.key - 1] = !simBent[+e.key - 1]; paintSim(); }
+  if (e.key === '0'){ simBent.fill(false); paintSim(); }
+});
+
+function applyMode(){
+  document.body.classList.toggle('live', S.mode === 'live');
+  document.querySelectorAll('#modeSeg button').forEach(b => b.classList.toggle('on', b.dataset.mode === S.mode));
+  if (S.mode === 'demo') setConn('demo');
+}
+$('#modeSeg').onclick = e => {
+  const b = e.target.closest('button'); if (!b) return;
+  S.mode = b.dataset.mode; saveS(); connState = ''; applyMode();
+  if (S.mode === 'live') setConn('off');
+};
+$('#ip').value = S.ip;
+$('#ip').onchange = e => { S.ip = e.target.value.trim().replace(/^https?:\/\//, '').replace(/\/$/, ''); e.target.value = S.ip; saveS(); toast('IP saved'); };
+
+/* settings dialog */
+const dlg = $('#settings');
+function syncSettings(){
+  $('#lang').value = S.lang; $('#thr').value = S.thr; $('#hold').value = S.hold;
+  $('#thrV').textContent = S.thr; $('#holdV').textContent = S.hold;
+  $('#voice').checked = S.voice; $('#siren').checked = S.siren; $('#vibrate').checked = S.vibrate;
+}
+$('#openSettings').onclick = () => { syncSettings(); dlg.showModal(); };
+$('#closeSettings').onclick = () => dlg.close();
+$('#lang').onchange = e => { S.lang = e.target.value; saveS(); showCat(emergency ? 'emergency' : shown); renderHistory(); speak(CATS.normal.msg[S.lang]); };
+$('#thr').oninput = e => { S.thr = +e.target.value; $('#thrV').textContent = S.thr; saveS(); placeTicks(); };
+$('#hold').oninput = e => { S.hold = +e.target.value; $('#holdV').textContent = S.hold; saveS(); };
+['voice', 'siren', 'vibrate'].forEach(k => $('#' + k).onchange = e => { S[k] = e.target.checked; saveS(); });
+$('#resetCal').onclick = () => { cal = F.map(() => ({ s:800, b:2600 })); store.set('cal', cal); toast('Calibration reset to defaults'); };
+
+/* ---------- init ---------- */
+renderLegend(); renderHistory(); placeTicks(); paintSim(); paintSound(); applyMode(); showCat('normal');
+if ('speechSynthesis' in window) speechSynthesis.getVoices();
+setInterval(tick, 200);
+setInterval(tickEmergency, 1000);
+})();
+</script>
+</body>
+</html>
